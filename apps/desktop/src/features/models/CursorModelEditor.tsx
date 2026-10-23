@@ -15,6 +15,8 @@ import styles from "./CursorSettings.module.scss";
 export type CursorModelDraft = {
   providerId: string;
   model: ModelInput;
+  /** 批量创建时额外勾选的模型 ID；与 model.model_id 共用同一套连接配置。 */
+  batchModelIds: string[];
   openAIExtraParamsText: string;
   customHeadersText: string;
   anthropicExtraParamsText: string;
@@ -22,6 +24,7 @@ export type CursorModelDraft = {
 
 export const emptyCursorModelDraft = (): CursorModelDraft => ({
   providerId: "builtin/openai",
+  batchModelIds: [],
   model: {
     sort_order: 0,
     display_name: "",
@@ -91,6 +94,17 @@ export function CursorModelEditor({ draft, modelOptions, discovering, onChange, 
     .filter((preset) => trimTrailingSlash(presetEndpoint(preset, draft.model.type).baseUrl) === trimTrailingSlash(draft.model.base_url.trim()))
     .flatMap((preset) => preset.models.map((item) => item.model_id));
   const combinedOptions = [...new Set([...modelOptions, ...presetModelOptions])];
+  /** 批量候选：去掉当前单值输入框里的模型，避免同一个模型被创建两次。 */
+  const batchCandidates = combinedOptions.filter((modelId) => modelId !== draft.model.model_id.trim());
+  const batchSelected = draft.batchModelIds.length > 0;
+  const toggleBatchModel = (modelId: string, checked: boolean) => {
+    const next = checked
+      ? [...draft.batchModelIds.filter((candidate) => candidate !== modelId), modelId]
+      : draft.batchModelIds.filter((candidate) => candidate !== modelId);
+    onChange({ ...draft, batchModelIds: next });
+  };
+  const selectAllBatchModels = () => onChange({ ...draft, batchModelIds: [...batchCandidates] });
+  const clearBatchModels = () => onChange({ ...draft, batchModelIds: [] });
   const discoverModels = async () => {
     if (await onDiscover()) modelCombobox.current?.openAll();
   };
@@ -103,6 +117,8 @@ export function CursorModelEditor({ draft, modelOptions, discovering, onChange, 
       .some((candidate) => trimTrailingSlash(candidate.baseUrl) === currentBase);
     onChange({
       ...draft,
+      // 切换服务商后，之前勾选的批量模型已经不属于当前地址，直接清空。
+      batchModelIds: [],
       model: {
         ...draft.model,
         base_url: endpoint.baseUrl,
@@ -157,7 +173,25 @@ export function CursorModelEditor({ draft, modelOptions, discovering, onChange, 
       <FormField label="API Key" hint={t("访问模型服务所需的密钥。")}> <SecretTextInput placeholder="sk-xxxxxx" autoComplete="off" value={draft.model.api_key} onChange={(event) => setModel({ api_key: event.target.value })} /></FormField>
 
       <FormField label={t("模型名称")} hint={t("可以直接输入模型标识，也可以读取接口返回的模型列表。")}><Combobox ref={modelCombobox} value={draft.model.model_id} options={combinedOptions} placeholder="gpt-5" append={<Button className={styles.discoverButton} disabled={discovering || !canDiscover} onClick={() => void discoverModels()}>{discovering ? t("获取中…") : t("获取模型")}</Button>} onChange={(model_id) => setModel({ model_id, display_name: draft.model.display_name || model_id })} /></FormField>
-      <FormField label={t("显示名称")} hint={t("仅用于界面展示，不会改变发送给模型服务的模型名称。")}> <TextInput placeholder={t("例如：主力模型")} value={draft.model.display_name} onChange={(event) => setModel({ display_name: event.target.value })} /></FormField>
+      <FormField label={t("显示名称")} hint={batchSelected ? t("批量创建时每个模型的显示名称使用模型 ID（命中内置预设时使用预设名称）。") : t("仅用于界面展示，不会改变发送给模型服务的模型名称。")}> <TextInput disabled={batchSelected} placeholder={batchSelected ? t("批量创建时使用模型 ID") : t("例如：主力模型")} value={draft.model.display_name} onChange={(event) => setModel({ display_name: event.target.value })} /></FormField>
+      {batchCandidates.length > 0 && <div className={`${styles.fullWidth} ${styles.batchPicker}`}>
+        <div className={styles.batchPickerHeader}>
+          <span>{t("批量选择模型")}</span>
+          <div className={styles.batchPickerActions}>
+            <Button size="small" onClick={selectAllBatchModels}>{t("全选")}</Button>
+            <Button size="small" disabled={!batchSelected} onClick={clearBatchModels}>{t("全不选")}</Button>
+          </div>
+        </div>
+        <span className={styles.batchPickerHint}>{t("勾选多个模型后保存，将复用上方的地址、密钥和参数一次性创建；显示名称默认使用模型 ID。")}</span>
+        <div className={styles.batchPickerList}>
+          {batchCandidates.map((modelId) => <Checkbox
+            key={modelId}
+            checked={draft.batchModelIds.includes(modelId)}
+            label={modelId}
+            onChange={(checked) => toggleBatchModel(modelId, checked)}
+          />)}
+        </div>
+      </div>}
       <FormField className={styles.fullWidth} label={t("备注")} hint={t("显示在 Cursor 模型说明中。")}> <TextInput placeholder={t("请输入模型备注")} value={draft.model.tooltip_data} onChange={(event) => setModel({ tooltip_data: event.target.value })} /></FormField>
 
       <FormField label={t("上下文窗口 Token")} hint={t("留空时使用默认值。")}> <TextInput type="number" min={1} step={1} placeholder={t("留空使用默认值")} value={draft.model.context_window_tokens ?? ""} onChange={(event) => setModel({ context_window_tokens: numberValue(event.target.value) })} /></FormField>

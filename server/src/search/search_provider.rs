@@ -98,9 +98,15 @@ async fn engine(store: Option<Store>) -> Result<Arc<SearchEngine>> {
                 Some(store) => crate::network::blocking_client_builder(&store).await?,
                 None => reqwest::blocking::Client::builder().use_native_tls(),
             };
+            // 索引缓存跟随 BYOK 数据目录，避免在主目录里额外增长一份大文件。
+            let semble = SembleConfig::new(
+                crate::config::managed_data_dir()?
+                    .join("cache")
+                    .join("semble"),
+            );
             tokio::task::spawn_blocking(move || {
                 let client = builder.build()?;
-                SearchEngine::load_default_with_client(SembleConfig::default(), &client)
+                SearchEngine::load_default_with_client(semble, &client)
                     .map(Arc::new)
                     .map_err(|error| Error::Config(format!("load Semble search engine: {error}")))
             })

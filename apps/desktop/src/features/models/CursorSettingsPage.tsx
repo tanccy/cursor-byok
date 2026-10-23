@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, configuredPluginModels, type Model, type ModelInput } from "../../shared/api";
+import { modelPresets } from "../../shared/utils/modelPresets";
 import { CursorCaGate, CursorCaProvider, CursorModelGate, CursorModelProvider } from "./CursorGates";
 import { CursorModelCards, cursorModelGroups, type CursorModelGroup, type CursorModelGrouping } from "./CursorModelCards";
 import { CursorModelEditor, emptyCursorModelDraft, type CursorModelDraft } from "./CursorModelEditor";
@@ -82,6 +83,8 @@ export function CursorSettingsPage() {
     setModelOptions([model.model_id]);
     setDraft({
       providerId: `builtin/${model.type}`,
+      // 编辑已有模型时不涉及批量创建。
+      batchModelIds: [],
       model: modelInput(model),
       openAIExtraParamsText: JSON.stringify(model.openai_extra_params, null, 2),
       customHeadersText: JSON.stringify(model.custom_headers, null, 2),
@@ -100,7 +103,13 @@ export function CursorSettingsPage() {
         custom_headers_enabled: draft.model.custom_headers_enabled,
         custom_headers,
       });
-      setModelOptions([...new Set(result.models)]);
+      const discovered = [...new Set(result.models)];
+      setModelOptions(discovered);
+      // 重新发现模型后，丢弃已不在列表中的批量勾选，避免创建过期条目。
+      setDraft((current) => current ? {
+        ...current,
+        batchModelIds: current.batchModelIds.filter((modelId) => discovered.includes(modelId)),
+      } : current);
       return true;
     } catch (cause) {
       message(errorText(cause));
@@ -111,9 +120,12 @@ export function CursorSettingsPage() {
   };
   const persist = async (): Promise<Model | null> => {
     if (!draft) return null;
-    const input = draftInput(draft);
-    if (editing) return appStore.updateCursorModel(editing.model_hash, input);
-    return (await appStore.createModels([input]))?.[0] ?? null;
+    if (editing) return appStore.updateCursorModel(editing.model_hash, draftInput(draft));
+    // 勾选了批量模型时，把同一套连接配置展开成多个模型一次性提交。
+    const inputs = draft.batchModelIds.length > 0 ? draftBatchInputs(draft) : [draftInput(draft)];
+    const created = await appStore.createModels(inputs);
+    if (created && inputs.length > 1) message(t("已添加 {count} 个模型", { count: created.length }));
+    return created?.[0] ?? null;
   };
   const save = async () => {
     try {
@@ -294,6 +306,11 @@ export function CursorSettingsPage() {
 
   const editorTestState = editing ? modelTestResults.get(editing.model_hash) : undefined;
   const editorTesting = Boolean(editing && testingModelHashes.has(editing.model_hash));
+  // 批量创建只用于新增;主输入框里的模型与勾选的模型合并去重后计数。
+  const batchCreating = !editing && (draft?.batchModelIds.length ?? 0) > 0;
+  const batchCreateCount = draft
+    ? new Set([draft.model.model_id.trim(), ...draft.batchModelIds].filter(Boolean)).size
+    : 0;
   const activeGroups = grouping === "provider" ? providerGroups : typeGroups;
   const pluginSectionHeight = pluginModels.length > 0 ? 60 + pluginModels.length * 56 : 0;
   const estimatedModelHeight = grouping === "flat"
@@ -338,7 +355,7 @@ export function CursorSettingsPage() {
     >
       <p>{t("关闭后将移除 Cursor 本地代理配置。如果你需要登陆官方账号，通常不需要关闭操作，推荐直接登陆你的账号即可(byok模型与官方账号的模型已支持无缝衔接)，是否继续关闭并清理代理？")}</p>
     </ConfirmDialog>
-    <Modal fullHeight open={draft !== null} title={editing ? t("编辑模型") : t("添加模型")} banner={draft && (editorTesting || editorTestState) ? <CursorModelTestResult state={editorTestState} testing={editorTesting} /> : undefined} busy={cursorBusy || savingAndTesting} onClose={() => { if (editing && editorTesting) void cancelModelTest(editing.model_hash); setDraft(null); setEditing(null); }} onSubmit={() => void save()} submitLabel={t("保存")} secondaryAction={<button type="button" className={controls.secondary} disabled={cursorBusy || savingAndTesting} onClick={() => void (editorTesting && editing ? cancelModelTest(editing.model_hash) : saveAndTest())}>{savingAndTesting ? t("处理中…") : editorTesting ? t("取消测试") : t("保存并测试")}</button>}>
+    <Modal fullHeight open={draft !== null} title={editing ? t("编辑模型") : t("添加模型")} banner={draft && (editorTesting || editorTestState) ? <CursorModelTestResult state={editorTestState} testing={editorTesting} /> : undefined} busy={cursorBusy || savingAndTesting} onClose={() => { if (editing && editorTesting) void cancelModelTest(editing.model_hash); setDraft(null); setEditing(null); }} onSubmit={() => void save()} submitLabel={batchCreating ? t("添加 {count} 个模型", { count: batchCreateCount }) : t("保存")} secondaryAction={batchCreating ? undefined : <button type="button" className={controls.secondary} disabled={cursorBusy || savingAndTesting} onClick={() => void (editorTesting && editing ? cancelModelTest(editing.model_hash) : saveAndTest())}>{savingAndTesting ? t("处理中…") : editorTesting ? t("取消测试") : t("保存并测试")}</button>}>
       {draft && <>
         <CursorModelEditor draft={draft} modelOptions={modelOptions} discovering={discovering} onChange={setDraft} onDiscover={discover} />
       </>}
@@ -375,7 +392,8 @@ function sharedValue(values: string[]): string | null {
   return rest.every((value) => value === first) ? first : null;
 }
 
-function draftInput(draft: CursorModelDraft): ModelInput {
+/** 归一化弹窗里的公共字段（连接信息、JSON 参数、数值范围），单条与批量创建共用。 */
+function draftCommonModel(draft: CursorModelDraft): ModelInput {
   const model = {
     ...draft.model,
     display_name: draft.model.display_name.trim(),
@@ -387,11 +405,40 @@ function draftInput(draft: CursorModelDraft): ModelInput {
     custom_headers: parseHeaders(draft.customHeadersText),
     anthropic_extra_params: parseObject(draft.anthropicExtraParamsText, t("Anthropic 额外参数")),
   };
-  if (!model.display_name || !model.base_url || !model.api_key || !model.tooltip_data || !model.model_id) throw new Error(t("服务器地址或完整请求 URL、API Key、模型名称、显示名称和备注不能为空"));
   for (const [label, value] of [[t("上下文窗口 Token"), model.context_window_tokens], [t("最大输出 Token"), model.type === "openai" ? model.max_completion_tokens : model.anthropic_max_tokens], [t("思考预算 Token"), model.thinking_budget_tokens]] as const) {
     if (value !== null && (!Number.isSafeInteger(value) || value <= 0)) throw new Error(t("{label} 必须是大于 0 的整数", { label }));
   }
   return model;
+}
+
+function draftInput(draft: CursorModelDraft): ModelInput {
+  const model = draftCommonModel(draft);
+  if (!model.display_name || !model.base_url || !model.api_key || !model.tooltip_data || !model.model_id) throw new Error(t("服务器地址或完整请求 URL、API Key、模型名称、显示名称和备注不能为空"));
+  return model;
+}
+
+/** 批量创建：把同一套连接配置展开成多个模型，显示名称优先取内置预设，否则回退到模型 ID。 */
+function draftBatchInputs(draft: CursorModelDraft): ModelInput[] {
+  const model = draftCommonModel(draft);
+  if (!model.base_url || !model.api_key || !model.tooltip_data) throw new Error(t("服务器地址或完整请求 URL、API Key 和备注不能为空"));
+  const modelIds = [...new Set([model.model_id, ...draft.batchModelIds.map((modelId) => modelId.trim())].filter(Boolean))];
+  if (modelIds.length === 0) throw new Error(t("请至少填写或选择一个模型名称"));
+  return modelIds.map((model_id, index) => ({
+    ...model,
+    model_id,
+    display_name: presetDisplayName(model_id) ?? model_id,
+    // 批量创建的模型按勾选顺序依次排在列表末尾。
+    sort_order: model.sort_order + index,
+  }));
+}
+
+/** 在内置预设里查找模型 ID 对应的展示名称。 */
+function presetDisplayName(modelId: string): string | null {
+  for (const preset of modelPresets) {
+    const match = preset.models.find((model) => model.model_id === modelId);
+    if (match) return match.display_name;
+  }
+  return null;
 }
 
 function parseHeaders(text: string): Record<string, string> {

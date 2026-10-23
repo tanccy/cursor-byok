@@ -332,6 +332,41 @@
   }
 }
 
+.batchPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+  border-radius: 4px;
+}
+
+.batchPickerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: type.$font-size-xs;
+}
+
+.batchPickerActions {
+  display: flex;
+  gap: 6px;
+}
+
+.batchPickerHint {
+  color: var(--vscode-descriptionForeground);
+  font-size: type.$font-size-xs;
+}
+
+.batchPickerList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 6px 12px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
 .jsonOption {
   display: flex;
   flex-direction: column;
