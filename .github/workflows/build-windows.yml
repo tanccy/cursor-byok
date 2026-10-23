@@ -7,24 +7,27 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - name: Checkout PR #484 branch
+      - name: Checkout feature branch
         uses: actions/checkout@v4
         with:
-          repository: okfanger/cursor-byok
-          ref: codex/fix-subagent-parent-headers
+          repository: tanccy/cursor-byok
+          ref: feat/portable-data-and-batch-models
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Build frontend
+      - name: Install frontend dependencies
         working-directory: apps/desktop
-        run: |
-          npm ci
-          npm run build
+        run: npm ci
 
+      # 必须用 tauri CLI 构建：它会自动启用 tauri/custom-protocol，
+      # 裸 cargo build 会编成开发模式，启动后只显示
+      # "frontend development server is unavailable"。
+      # tauri build 会自动执行 beforeBuildCommand（npm run build）。
       - name: Build desktop exe
-        run: cargo build --release -p cursor-byok-desktop
+        working-directory: apps/desktop
+        run: npm run tauri:build -- --no-bundle
 
       - uses: actions/upload-artifact@v4
         with:
