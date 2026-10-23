@@ -1,0 +1,32 @@
+name: Build Windows exe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout PR #484 branch
+        uses: actions/checkout@v4
+        with:
+          repository: okfanger/cursor-byok
+          ref: codex/fix-subagent-parent-headers
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build frontend
+        working-directory: apps/desktop
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build desktop exe
+        run: cargo build --release -p cursor-byok-desktop
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cursor-byok-desktop-windows
+          path: target/release/cursor-byok-desktop.exe
