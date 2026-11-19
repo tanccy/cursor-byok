@@ -17,19 +17,6 @@
       @confirm="resolveModal(true)"
       @cancel="resolveModal(false)"
     />
-    <Modal
-      v-if="isMainWindow"
-      :visible="appState.updatePromptVisible"
-      :title="updateViewState.promptTitle"
-      :content="updateViewState.promptContent"
-      :confirm-text="updateViewState.promptConfirmText"
-      :cancel-text="updateViewState.promptCancelText"
-      :show-cancel="updateViewState.promptShowCancel"
-      :confirm-disabled="appState.updatePromptBusy"
-      :markdown="appState.updatePromptKind === 'ready'"
-      @confirm="confirmUpdatePrompt"
-      @cancel="dismissUpdatePrompt"
-    />
     <InputModal
       :visible="inputModalState.visible"
       :title="inputModalState.title"
@@ -53,7 +40,6 @@ import { modalState, resolveModal } from "@/composables/useModal";
 
 import InputModal from "@/components/ui/InputModal.vue";
 import { inputModalState, resolveInputModal } from "@/composables/useInputModal";
-import { appState, confirmUpdatePrompt, dismissUpdatePrompt, updateViewState } from "@/state/appState";
 import { computed } from "vue";
 import { useRoute } from "vue-router";
 

@@ -807,7 +807,10 @@ func normalizeOpenAIChatMessageToolCallsJSONShape(messages []map[string]any) {
 // 的输出语义：input 为 nil 时仍写入 key（值为 null），供 applyOpenAIParallelToolCalls
 // 的 body["input"] 存在性判断保持原行为。
 func buildOpenAIResponsesBodyMap(req StreamRequest, modelID string, promptCacheKeyMaximumLength int) (map[string]any, error) {
-	instructions, input, err := normalizeOpenAIResponsesInput(req.Messages)
+	// 与 Chat 路径共用同一套配对保底：function_call 与 function_call_output
+	// 同样必须一一对应，否则上游返回 400。
+	messages := applyToolReplayPairingRepair(req, req.Messages)
+	instructions, input, err := normalizeOpenAIResponsesInput(messages)
 	if err != nil {
 		return nil, err
 	}
@@ -860,6 +863,9 @@ func buildOpenAIChatBodyMap(req StreamRequest, baseURL string, modelID string, p
 	if xmlPromptMode {
 		messages = xmlToolProtocolMessages(messages)
 	}
+	// Provider 侧最后一道配对保底：历史断链（取消的交互工具、压缩裁剪、
+	// 导入会话）会让 OpenAI 直接 400 "tool calls and tool results do not match"。
+	messages = applyToolReplayPairingRepair(req, messages)
 	normalizedMessages, err := normalizeOpenAIProviderMessages(messages, strings.TrimSpace(req.ReasoningEffort) != "", isKimiOpenAIRequest(baseURL, modelID))
 	if err != nil {
 		return nil, err

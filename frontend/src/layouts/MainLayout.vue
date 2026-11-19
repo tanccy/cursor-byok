@@ -1,7 +1,6 @@
 <script setup>
 import { isBrowserPreview, runtimeBrowser, runtimeWindow } from "@/services/runtimeAdapter";
 import LocaleSelect from "@/components/LocaleSelect.vue";
-import { useMessage } from "@/composables/useMessage";
 import { showModal } from "@/composables/useModal";
 import {
   getFooterAuthorInfo,
@@ -10,11 +9,9 @@ import {
 } from "@/services/clientApi";
 import {
   appState,
-  checkForAppUpdates,
   getStatsOverlayPreferences,
   refreshDebugLogUsage,
   syncProxyState,
-  updateViewState,
 } from "@/state/appState";
 import { closeApplication as closeApplicationNative } from "@/services/clientApi";
 import { isWindows } from "@/utils/isWindows";
@@ -26,7 +23,6 @@ import { usePolling } from "@/composables/usePolling";
 import AppSidebar from "@/components/layout/AppSidebar.vue";
 
 const route = useRoute();
-const message = useMessage();
 const directlyClose = computed(() => route.meta.directlyClose === true);
 const mainCloseAction = computed(() => appState.statsOverlayPreferences.closeAction === "quit" ? "quit" : "tray");
 const showFooter = computed(() => route.path === "/");
@@ -111,20 +107,6 @@ async function closeWindow() {
     return;
   }
   await runtimeWindow.Hide();
-}
-
-async function handleCheckForUpdates() {
-  if (updateViewState.footerBusy || updateViewState.footerDownloading) {
-    return;
-  }
-  const loadingMessageID = message.loading("检查更新中...");
-  try {
-    await checkForAppUpdates();
-  } finally {
-    if (loadingMessageID) {
-      message.remove(loadingMessageID);
-    }
-  }
 }
 
 async function loadFooterAuthorInfo() {
@@ -407,16 +389,11 @@ const cursorStatusText = computed(() => {
           <span class="icon-[mdi--wifi] text-[15px]" />
           <span class="truncate">{{ proxyBadgeText }}</span>
         </div>
-        <button
-          v-if="!updateViewState.footerDownloading"
-          type="button"
-          class="center-row shrink-0 gap-[6px] cursor-pointer rounded-[6px] px-[6px] py-[3px] transition-colors duration-150 hover:bg-[#1f1f1f] hover:text-[#e5e5e5]"
-          :disabled="updateViewState.footerBusy"
-          @click="handleCheckForUpdates"
-        >
-          <span>{{ updateViewState.footerVersionLabel }}</span>
-          <span>检查更新</span>
-        </button>
+        <span
+          v-if="appState.appVersion"
+          class="center-row shrink-0 gap-[6px] px-[6px] py-[3px] tabular-nums text-[#8f8f8f]"
+          title="当前版本"
+        >v{{ appState.appVersion }}</span>
         <button
           type="button"
           class="center-row shrink-0 gap-[2px]  cursor-pointer rounded-[6px] px-[6px] py-[3px] transition-colors duration-150 hover:bg-[#1f1f1f] hover:text-[#e5e5e5]"
@@ -443,25 +420,6 @@ const cursorStatusText = computed(() => {
           <span class="icon-[mdi--github] text-[15px]" />
           <span>GitHub</span>
         </button>
-        <div
-          v-if="updateViewState.footerDownloading"
-          class="flex min-w-0 flex-1 items-center gap-[10px]"
-        >
-          <span class="shrink-0">{{ updateViewState.footerVersionLabel }}</span>
-          <div class="center-row min-w-0 gap-[8px]">
-            <div
-              class="h-[6px] w-[120px] overflow-hidden rounded-full bg-[#1f1f1f]"
-            >
-              <div
-                class="h-full rounded-full bg-gradient-to-r from-[#10AD5D] to-[#29c776]"
-                :style="updateViewState.footerProgressStyle"
-              />
-            </div>
-            <span class="shrink-0 text-[#d4d4d4]">{{
-              updateViewState.footerProgressText
-            }}</span>
-          </div>
-        </div>
         <div class="ml-auto flex shrink-0 items-center gap-[8px]">
           <span
             class="shrink-0 tabular-nums text-[#8f8f8f]"

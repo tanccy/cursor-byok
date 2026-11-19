@@ -33,7 +33,6 @@ import (
 	"cursor/internal/mitm"
 	"cursor/internal/netproxy"
 	"cursor/internal/safego"
-	"cursor/internal/updater"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
@@ -69,10 +68,6 @@ func init() {
 	application.RegisterEvent[bridge.ModelAdapterTestResultsPayload]("model-adapter-test:updated")
 	application.RegisterEvent[client.ProviderBalancesSyncedPayload]("provider-balances-synced")
 	application.RegisterEvent[bridge.AdRuntime](ads.EventUpdated)
-	application.RegisterEvent[updater.StatePayload](updater.EventState)
-	application.RegisterEvent[updater.ProgressPayload](updater.EventProgress)
-	application.RegisterEvent[updater.ReadyPayload](updater.EventReady)
-	application.RegisterEvent[updater.ErrorPayload](updater.EventError)
 }
 
 // Run 用于处理与 Run 相关的逻辑。
@@ -189,7 +184,6 @@ func Run(resources EmbeddedResources) error {
 	})
 	adService := bridge.NewAdService(adCore)
 	logStartupPhase("services")
-	var updateManager *updater.Manager
 
 	var mainWindow *application.WebviewWindow
 	adRefreshCtx, stopAdRefresh := context.WithCancel(context.Background())
@@ -212,9 +206,6 @@ func Run(resources EmbeddedResources) error {
 		},
 		OnShutdown: func() {
 			stopAdRefresh()
-			if updateManager != nil {
-				updateManager.Shutdown()
-			}
 			proxyService.ShutdownForQuit()
 		},
 		SingleInstance: &application.SingleInstanceOptions{
@@ -282,10 +273,8 @@ func Run(resources EmbeddedResources) error {
 	}
 
 	logStartupPhase("application-new")
-	updateManager = updater.NewManager(app)
 
 	windowService.SetApp(app)
-	windowService.SetUpdater(updateManager)
 
 	desktopSettings, desktopSettingsErr := appdata.LoadDesktopSettings()
 	if desktopSettingsErr != nil {
@@ -379,9 +368,6 @@ func Run(resources EmbeddedResources) error {
 	menu.AddSeparator()
 	startItem := menu.Add(i18n.T(i18n.DefaultLocale, "tray.start"))
 	stopItem := menu.Add(i18n.T(i18n.DefaultLocale, "tray.stop"))
-	updateItem := menu.Add(i18n.T(i18n.DefaultLocale, "tray.update")).OnClick(func(ctx *application.Context) {
-		updateManager.CheckNow(true)
-	})
 	menu.AddSeparator()
 	showItem := menu.Add(i18n.T(i18n.DefaultLocale, "tray.show")).OnClick(func(ctx *application.Context) {
 		showMainWindow()
@@ -425,7 +411,6 @@ func Run(resources EmbeddedResources) error {
 		statusItem.SetLabel(i18n.T(current, statusKey))
 		startItem.SetLabel(i18n.T(current, "tray.start"))
 		stopItem.SetLabel(i18n.T(current, "tray.stop"))
-		updateItem.SetLabel(i18n.T(current, "tray.update"))
 		showItem.SetLabel(i18n.T(current, "tray.show"))
 		showStatsItem.SetLabel(i18n.T(current, "tray.show_stats"))
 		hideItem.SetLabel(i18n.T(current, "tray.hide"))
@@ -462,7 +447,6 @@ func Run(resources EmbeddedResources) error {
 	})
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(event *application.ApplicationEvent) {
 		logger.Infof("应用版本：v%s", buildinfo.CurrentVersion())
-		updateManager.Start()
 		startAdRefreshLoop(adRefreshCtx)
 		safego.Go("app:autostart", func() {
 			logger.Infof("application started, begin auto start service in background")

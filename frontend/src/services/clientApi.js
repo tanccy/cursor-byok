@@ -42,7 +42,7 @@ import {
   ResetUsageMetrics,
 } from "@bindings/cursor/internal/bridge/metricsservice.js";
 import {
-  CheckForUpdates, GetAppVersion, GetFooterAuthorInfo, InstallReadyUpdate,
+  GetAppVersion, GetFooterAuthorInfo,
   GetModelEditorContext, OpenConfigWindow, OpenFooterAuthorHome, OpenHistoryWindow,
   OpenMetricsDetailWindow, OpenRequestMetricsWindow, OpenStatsOverlayWindow, UpdateStatsOverlayWindow, SetStatsOverlayAlwaysOnTop,
   CloseStatsOverlayWindow, OpenModelConfigWindow, OpenModelEditorWindow, ExportLogs,
@@ -59,7 +59,7 @@ import { normalizeClientError, safeErrorLogAttributes, summarizePayload } from "
 const desktopMethods = {
   LoadUserConfig, SaveUserConfig, GetState, GetMirrorCaptureStatus, GetHomeMetricsSummary, GetAdRuntime, OpenExternalURL,
   StartProxy, StopProxy, OpenHistoryWindow, OpenMirrorCaptureDirectory, OpenConfigWindow, GetAppVersion, GetFooterAuthorInfo,
-  CheckForUpdates, InstallReadyUpdate, OpenFooterAuthorHome, OpenModelConfigWindow, OpenModelEditorWindow,
+  OpenFooterAuthorHome, OpenModelConfigWindow, OpenModelEditorWindow,
   OpenMetricsDetailWindow, OpenRequestMetricsWindow, OpenStatsOverlayWindow, UpdateStatsOverlayWindow, SetStatsOverlayAlwaysOnTop,
   CloseStatsOverlayWindow, SetMainWindowCloseAction, CloseApplication, GetModelEditorContext, TestModelAdapter, GetModelAdapterTestResults, GetRecentRequestMetrics,
   GetMetricsRangeSummary, GetMetricsTokenBuckets, GetProviderSpendSummary, GetLocalCacheStats,
@@ -442,8 +442,6 @@ export function exportLogs() { return desktopOrMock("", "@bindings/cursor/intern
 export function openConfigWindow() { return desktopOrMock(undefined, "@bindings/cursor/internal/bridge/windowservice.js", "OpenConfigWindow"); }
 export function getAppVersion() { return desktopOrMock("Browser Preview", "@bindings/cursor/internal/bridge/windowservice.js", "GetAppVersion"); }
 export function getFooterAuthorInfo() { return desktopOrMock(null, "@bindings/cursor/internal/bridge/windowservice.js", "GetFooterAuthorInfo"); }
-export function checkForUpdates() { return desktopOrMock(undefined, "@bindings/cursor/internal/bridge/windowservice.js", "CheckForUpdates"); }
-export function installReadyUpdate() { return desktopOrMock(undefined, "@bindings/cursor/internal/bridge/windowservice.js", "InstallReadyUpdate"); }
 export function openFooterAuthorHome() { return desktopOrMock(undefined, "@bindings/cursor/internal/bridge/windowservice.js", "OpenFooterAuthorHome"); }
 export function openModelConfig() { return desktopOrMock(undefined, "@bindings/cursor/internal/bridge/windowservice.js", "OpenModelConfigWindow"); }
 export function openMetricsDetailWindow() { return desktopOrMock(undefined, "@bindings/cursor/internal/bridge/windowservice.js", "OpenMetricsDetailWindow"); }

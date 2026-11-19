@@ -10,7 +10,7 @@ cursor-byok 是 Cursor 客户端的本地代理（MITM + 后端 agent + 前端�
 - `internal/mitm`：HTTPS MITM 代理，拦截/转发 Cursor 客户端请求，注入本地配置与模型路由。
 - `internal/backend`：核心 agent 运行时（forwarder 驱动 provider 循环、工具执行、委派）。
 - `frontend`：Wails 桌面管理面板（12 个页面），通过 @bindings 与后端通信。
-- `internal/client`：模型渠道探测/基准测试/余额查询；`internal/updater`：自更新。
+- `internal/client`：模型渠道探测/基准测试/余额查询。
 - `cmd`：可执行入口（服务端、CLI、安装器辅助等）。
 
 ## 二、前端功能清单（按路由，全部可达）
@@ -49,7 +49,7 @@ cursor-byok 是 Cursor 客户端的本地代理（MITM + 后端 agent + 前端�
 | `internal/historymetrics` | 请求历史指标聚合（SQLite） | |
 | `internal/runtime` | 运行时配置快照/渠道解析（legacy ResolvedChannel） | |
 | `internal/certs` / `internal/netproxy` | 本地 CA 管理 / 代理感知 HTTP 客户端 | |
-| `internal/updater` / `internal/buildinfo` | 自更新清单与构建信息 | |
+| `internal/buildinfo` | 构建信息（版本号展示） | |
 | `internal/i18n` / `internal/logger` | 本地化与结构化日志 | |
 
 ## 四、Cursor 客户端协议接线状态（均已对接）

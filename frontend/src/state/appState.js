@@ -114,11 +114,9 @@ export {
 } from "@/utils/protocolMeta";
 export { BALANCE_QUERY_HEADERS_DEFAULT_JSON } from "@/utils/configValidators";
 import {
-  checkForUpdates,
   getAppVersion,
   getHomeMetricsSummary,
   getModelAdapterTestResults,
-  installReadyUpdate,
   getProxyState,
   openConfigWindow as openConfig,
   loadUserConfig,
@@ -148,7 +146,6 @@ import {
 import { getHistoryDebugUsage } from "@/services/runtimeControlApi";
 import { createConfigWriter } from "@/services/configWriter";
 import { createServiceViewState } from "@/state/serviceViewState";
-import { createUpdateViewState } from "@/state/updateViewState";
 const APP_STATE_STORAGE_KEY = "cursor-client:runtime-state:v2";
 export const ROUTE_MODE_OPTIONS = [
   { label: "本地服务模式", value: "local" },
@@ -161,10 +158,6 @@ export const COMPUTER_USE_MODE_OPTIONS = [
 ];
 const PROXY_STATE_EVENT = "proxy:state";
 const USER_CONFIG_CHANGED_EVENT = "user-config:changed";
-const UPDATE_STATE_EVENT = "update:state";
-const UPDATE_PROGRESS_EVENT = "update:progress";
-const UPDATE_READY_EVENT = "update:ready";
-const UPDATE_ERROR_EVENT = "update:error";
 const MODEL_ADAPTER_TEST_UPDATED_EVENT = "model-adapter-test:updated";
 export const DEBUG_LOG_WARNING_BYTES = 100 * 1024 * 1024;
 
@@ -383,120 +376,6 @@ function handleModelAdapterTestUpdatedEvent(event) {
   void refreshModelAdapterTestResults().catch(() => {});
 }
 
-function normalizeUpdateState(value) {
-  const text = asString(value).toLowerCase();
-  if (["idle", "checking", "downloading", "ready", "installing", "error"].includes(text)) {
-    return text;
-  }
-  return "idle";
-}
-
-function applyUpdateSnapshot(raw) {
-  const data = raw && typeof raw === "object" ? raw : {};
-  const nextState = normalizeUpdateState(data.state ?? appState.updateState);
-  appState.updateState = nextState;
-
-  const version = asString(data.version);
-  if (version) {
-    appState.updateVersion = version;
-  } else if (nextState === "idle") {
-    appState.updateVersion = "";
-  }
-
-  const releaseDate = asString(data.releaseDate);
-  if (releaseDate) {
-    appState.updateReleaseDate = releaseDate;
-  } else if (nextState === "idle") {
-    appState.updateReleaseDate = "";
-  }
-
-  if (typeof data.releaseNotes === "string") {
-    appState.updateReleaseNotes = data.releaseNotes.replace(/\r\n/g, "\n");
-  } else if (nextState === "idle") {
-    appState.updateReleaseNotes = "";
-  }
-
-  if (typeof data.error === "string") {
-    appState.updateError = data.error.trim();
-  } else if (nextState !== "error") {
-    appState.updateError = "";
-  }
-
-  if (typeof data.message === "string") {
-    appState.updateMessage = data.message.trim();
-  } else if (!data.prompt) {
-    appState.updateMessage = "";
-  }
-
-  if (typeof data.downloaded === "number") {
-    appState.updateProgressDownloaded = data.downloaded;
-  } else if (nextState !== "downloading") {
-    appState.updateProgressDownloaded = 0;
-  }
-
-  if (typeof data.total === "number") {
-    appState.updateProgressTotal = data.total;
-  } else if (nextState !== "downloading") {
-    appState.updateProgressTotal = 0;
-  }
-
-  if (typeof data.percentage === "number") {
-    appState.updateProgressPercent = Math.max(0, Math.min(100, data.percentage));
-  } else if (nextState !== "downloading") {
-    appState.updateProgressPercent = 0;
-  }
-}
-
-function openUpdatePrompt(kind, payload = {}) {
-  appState.updatePromptKind = asString(kind) || "idle";
-  appState.updatePromptVisible = true;
-  appState.updatePromptBusy = false;
-  if (typeof payload.message === "string") {
-    appState.updateMessage = payload.message.trim();
-  }
-  if (typeof payload.error === "string") {
-    appState.updateError = payload.error.trim();
-  }
-}
-
-function handleUpdateStateEvent(event) {
-  const data = event?.data && typeof event.data === "object" ? event.data : {};
-  applyUpdateSnapshot(data);
-  if (asBoolean(data.prompt)) {
-    openUpdatePrompt(asString(data.promptKind) || "idle", data);
-  }
-}
-
-function handleUpdateProgressEvent(event) {
-  const data = event?.data && typeof event.data === "object" ? event.data : {};
-  applyUpdateSnapshot({
-    ...data,
-    state: "downloading",
-  });
-}
-
-function handleUpdateReadyEvent(event) {
-  const data = event?.data && typeof event.data === "object" ? event.data : {};
-  applyUpdateSnapshot({
-    ...data,
-    state: "ready",
-  });
-  if (data.prompt !== false) {
-    openUpdatePrompt("ready", data);
-  }
-}
-
-function handleUpdateErrorEvent(event) {
-  const data = event?.data && typeof event.data === "object" ? event.data : {};
-  applyUpdateSnapshot({
-    ...data,
-    state: "error",
-  });
-  if (asBoolean(data.prompt)) {
-    openUpdatePrompt("error", data);
-  }
-}
-
 const cachedState = loadCachedState();
 const cachedConfig = normalizeConfig(cachedState);
 
@@ -562,19 +441,6 @@ export const appState = reactive({
   homeMetrics: createEmptyHomeMetrics(),
   homeMetricsLoading: false,
   homeMetricsError: "",
-
-  updateState: "idle",
-  updateVersion: "",
-  updateReleaseDate: "",
-  updateReleaseNotes: "",
-  updateProgressDownloaded: 0,
-  updateProgressTotal: 0,
-  updateProgressPercent: 0,
-  updateError: "",
-  updateMessage: "",
-  updatePromptVisible: false,
-  updatePromptKind: "idle",
-  updatePromptBusy: false,
 });
 
 // 持久化快照拆成两层 computed：normalizeConfig 这类深遍历只在「配置」字段真正变化时重跑，
@@ -650,48 +516,7 @@ watchSyncEffect((onCleanup) => {
   });
 });
 
-watchSyncEffect((onCleanup) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-  const unsubscribe = runtimeEvents.On(UPDATE_STATE_EVENT, handleUpdateStateEvent);
-  onCleanup(() => {
-    unsubscribe();
-  });
-});
-
-watchSyncEffect((onCleanup) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-  const unsubscribe = runtimeEvents.On(UPDATE_PROGRESS_EVENT, handleUpdateProgressEvent);
-  onCleanup(() => {
-    unsubscribe();
-  });
-});
-
-watchSyncEffect((onCleanup) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-  const unsubscribe = runtimeEvents.On(UPDATE_READY_EVENT, handleUpdateReadyEvent);
-  onCleanup(() => {
-    unsubscribe();
-  });
-});
-
-watchSyncEffect((onCleanup) => {
-  if (typeof window === "undefined") {
-    return;
-  }
-  const unsubscribe = runtimeEvents.On(UPDATE_ERROR_EVENT, handleUpdateErrorEvent);
-  onCleanup(() => {
-    unsubscribe();
-  });
-});
-
 export const appViewState = createServiceViewState(appState);
-export const updateViewState = createUpdateViewState(appState);
 
 export function getModelAdapterTestResultByID(adapterID) {
   const id = asString(adapterID);
@@ -1527,34 +1352,6 @@ export async function openModelConfigWindow() {
 export async function openModelEditorWindow(index, adapter) {
   const adapterJSON = JSON.stringify(normalizeModelAdapter(adapter));
   await openModelEditor(index, adapterJSON);
-}
-
-export async function checkForAppUpdates() {
-  await checkForUpdates();
-}
-
-export function dismissUpdatePrompt() {
-  appState.updatePromptVisible = false;
-  appState.updatePromptBusy = false;
-}
-
-export async function confirmUpdatePrompt() {
-  if (appState.updatePromptKind !== "ready") {
-    dismissUpdatePrompt();
-    return;
-  }
-  if (appState.updatePromptBusy) {
-    return;
-  }
-  appState.updatePromptBusy = true;
-  try {
-    await installReadyUpdate();
-  } catch (error) {
-    appState.updatePromptBusy = false;
-    const message = toUserError(error);
-    appState.updateError = message;
-    openUpdatePrompt("error", { error: message });
-  }
 }
 
 export async function bootstrapAppState() {

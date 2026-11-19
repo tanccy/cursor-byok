@@ -1096,6 +1096,9 @@ func sanitizeProviderMessages(input []Message) []Message {
 	}
 	filtered = mergeAdjacentAssistantToolCallMessages(filtered)
 	filtered = trimDanglingAssistantToolCalls(filtered)
+	// 配对兜底：trimDanglingAssistantToolCalls 只识别紧邻 assistant 的 tool 结果，
+	// 被其它角色消息隔开的 tool 结果、重复结果仍会漏网，交给统一修复处理。
+	filtered, _, _ = repairToolReplayPairingMessages(filtered)
 	for len(filtered) > 0 && isAssistantPrefillMessage(filtered[len(filtered)-1]) {
 		filtered = filtered[:len(filtered)-1]
 	}

@@ -8,7 +8,6 @@ import (
 	"cursor/internal/i18n"
 	"cursor/internal/logger"
 	"cursor/internal/processutil"
-	"cursor/internal/updater"
 	"fmt"
 	"io"
 	"os"
@@ -34,7 +33,6 @@ type modelEditorContext struct {
 // WindowService 定义了当前模块中的 WindowService 类型。
 type WindowService struct {
 	app                   *application.App
-	updater               *updater.Manager
 	mainWindow            *application.WebviewWindow
 	modelConfigWindow     *application.WebviewWindow
 	modelEditorWindow     *application.WebviewWindow
@@ -116,7 +114,7 @@ func (s *WindowService) GetMainWindowCloseAction() string {
 	return "tray"
 }
 
-// CloseApplication 请求应用退出，由应用 OnShutdown 统一清理代理和更新服务。
+// CloseApplication 请求应用退出，由应用 OnShutdown 统一清理代理服务。
 func (s *WindowService) CloseApplication() {
 	s.mu.RLock()
 	app := s.app
@@ -134,39 +132,9 @@ func (s *WindowService) CloseApplication() {
 	}
 }
 
-// SetUpdater 关联更新管理器，供前端手动触发检查更新。
-func (s *WindowService) SetUpdater(manager *updater.Manager) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.updater = manager
-}
-
-// GetAppVersion 返回当前应用版本号。
+// GetAppVersion 返回当前应用版本号（仅供页脚展示，应用不再提供在线更新）。
 func (s *WindowService) GetAppVersion() string {
 	return buildinfo.CurrentVersion()
-}
-
-// CheckForUpdates 触发一次手动检查更新。
-func (s *WindowService) CheckForUpdates() {
-	s.mu.RLock()
-	manager := s.updater
-	s.mu.RUnlock()
-	if manager == nil {
-		return
-	}
-	manager.CheckNow(true)
-}
-
-// InstallReadyUpdate 安装当前已下载完成的更新。
-func (s *WindowService) InstallReadyUpdate() error {
-	s.mu.RLock()
-	manager := s.updater
-	locale := s.locale
-	s.mu.RUnlock()
-	if manager == nil {
-		return fmt.Errorf("%s", i18n.T(locale, "error.update_manager_uninitialized"))
-	}
-	return manager.InstallReadyUpdate()
 }
 
 // OpenConfigWindow 打开本地设置目录。

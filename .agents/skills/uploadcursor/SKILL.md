@@ -67,7 +67,7 @@ info:
 
 约束：
 - **内部实现可保留技术值**（GOARCH `386`、task 名 `build:windows:386`、NSIS 脚本 `project-386.nsi`），但**产物文件名、update.json 平台 key、release 资产名必须用上表命名**
-- 改动命名必须**五处同步**：`Taskfile.yml` 产物名、`.github/workflows/build.yml`（matrix artifact / copy_asset / jq 平台校验）、`scripts/release/main.go` 的 `releaseAssets`、`internal/updater/manager.go` 的 `currentPlatformKey()`、`release-notes.md` 推荐下载名
+- 改动命名必须**四处同步**：`Taskfile.yml` 产物名、`.github/workflows/build.yml`（matrix artifact / copy_asset / jq 平台校验）、`scripts/release/main.go` 的 `releaseAssets`、`release-notes.md` 推荐下载名
 - NSIS 打包的 makensis `File` 指令**不支持 `..` 段或混合分隔符路径**（报 `no files found`）；必须先复制二进制到 `build/windows/nsis/` 再用本地文件名，参考 `create:nsis:installer` 的复制步骤
 
 ### 4. 提交并创建 tag
@@ -115,7 +115,7 @@ git push origin v0.0.50
 
 - GitHub Actions 页面确认构建成功
 - Releases 页面确认新版本和资产已上传
-- `update.json` 已更新（应用内自动更新会检查此文件）
+- `update.json` 已更新（仅作为发布清单归档，应用内已移除在线更新，不再读取）
 
 ## 注意事项
 

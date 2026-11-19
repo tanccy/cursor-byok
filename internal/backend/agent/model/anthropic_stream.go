@@ -44,8 +44,11 @@ func (adapter *AnthropicAdapter) Stream(ctx context.Context, req StreamRequest, 
 	if len(body) == 0 {
 		thinkingConfig := buildAnthropicThinkingConfig(req)
 		relocateImages := shouldRelocateAnthropicImages(baseURL)
-		stableMessageCount := anthropicStableProviderMessageCount(req.Messages, req.StableMessageCount, thinkingConfig != nil)
-		systemParts, messages, err := normalizeAnthropicProviderMessages(req.Messages, thinkingConfig != nil, relocateImages)
+		// Anthropic 同样要求 tool_use / tool_result 严格配对，断链历史会直接 400。
+		// 这里与 OpenAI 路径共用同一套配对保底修复。
+		repairedMessages := applyToolReplayPairingRepair(req, req.Messages)
+		stableMessageCount := anthropicStableProviderMessageCount(repairedMessages, req.StableMessageCount, thinkingConfig != nil)
+		systemParts, messages, err := normalizeAnthropicProviderMessages(repairedMessages, thinkingConfig != nil, relocateImages)
 		if err != nil {
 			return err
 		}
