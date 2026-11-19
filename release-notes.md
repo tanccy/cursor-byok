@@ -1,3 +1,24 @@
+## v1.0.27
+
+### 修复
+
+- **工具记录不一致导致整段会话无法继续**：历史里出现悬空的工具调用，或找不到对应调用的工具结果时（例如交互工具被取消、上下文压缩或导入会话裁剪了链路一端），上游会直接返回 400「tool calls and tool results do not match」。现在发送前会按严格顺序重建配对，只裁掉断链部分，已有会话无需新建任务即可继续。
+
+### 变更
+
+- **移除应用内在线更新**：不再后台检查更新、下载安装包或自动重启安装；页脚仅保留只读版本号。新版本请从 GitHub Releases 手动下载。
+
+### 下载哪个文件？（按系统选择）
+
+- **Windows 64 位**：`cursor-byok-1.0.27-windows-x64-installer.exe`（安装版）或 `cursor-byok-1.0.27-windows-x64.zip`（绿色版）
+- **Windows ARM64**：`cursor-byok-1.0.27-windows-arm64-installer.exe` 或 `cursor-byok-1.0.27-windows-arm64.zip`
+- **Windows 32 位**：`cursor-byok-1.0.27-windows-x32-installer.exe` 或 `cursor-byok-1.0.27-windows-x32.zip`
+- **macOS Apple Silicon**：`cursor-byok-1.0.27-macos-arm64.dmg` 或 `cursor-byok-1.0.27-macos-arm64.tar.gz`
+- **macOS Intel**：`cursor-byok-1.0.27-macos-x64.dmg` 或 `cursor-byok-1.0.27-macos-x64.tar.gz`
+- **Linux 64 位**：`cursor-byok-1.0.27-linux-x64.tar.gz`
+
+> **Windows 用户注意**：安装时若被 SmartScreen 拦截，请先确认下载来源和文件可信；可信时可点击「更多信息」->「仍要运行」。
+
 ## v1.0.26
 
 - **上下文档位实际生效**：在 Cursor 中选择较小档位后，长会话会按该预算压缩并在发送前重新校验。开启 MaxMode 也会保留所选小档位，原始会话历史仍可保留。
